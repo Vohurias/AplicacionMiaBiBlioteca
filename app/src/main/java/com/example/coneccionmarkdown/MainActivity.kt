@@ -61,6 +61,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
+import androidx.activity.SystemBarStyle
 
 data class ItemBiblioteca(
     val nombre: String,
@@ -69,6 +70,28 @@ data class ItemBiblioteca(
     val nombreArchivoAssets: String, // Apunta directamente al archivo .md
     val iconoResId: Int
 )
+
+data class ItemMenu(
+    val nombre: String,
+    val descripcionBreve: String,
+    val iconoOpcion: Int
+)
+
+// ====================================
+//2. Repositorio de pa biblioteca - menu
+///===============================
+object Menu{
+    val listaOpciones = listOf(
+        ItemMenu(
+            nombre ="Terminal",
+            descripcionBreve = "Programas de terminal",
+            iconoOpcion = R.drawable.terminal
+        )
+    )
+}
+
+
+
 
 // ==========================================
 // 2. REPOSITORIO DE DATOS (Índice de la aplicación)
@@ -111,6 +134,7 @@ object BibliotecaDatabase {
 // 3. CONTROLADOR DE PANTALLAS (Navegación por Estado)
 // ==========================================
 sealed class Pantalla {
+    object MenuPrincipal : Pantalla() // <-- 1. Agregada la nueva ruta del menú
     object Lista : Pantalla()
     data class VisorMarkdown(val item: ItemBiblioteca) : Pantalla()
 }
@@ -121,7 +145,10 @@ sealed class Pantalla {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.BLACK)
+        )
         setContent {
             MaterialTheme {
                 Surface(
@@ -137,12 +164,23 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun AppNavegacionBiblioteca() {
-    var pantallaActual by remember { mutableStateOf<Pantalla>(Pantalla.Lista) }
+    var pantallaActual by remember { mutableStateOf<Pantalla>(Pantalla.MenuPrincipal) }
 
     when (val pantalla = pantallaActual) {
+        is Pantalla.MenuPrincipal -> PantallaMenuOpciones(
+            onOpcionSeleccionada = { opcion ->
+                // Al presionar la opción "Terminal", navegamos a la lista de comandos
+                if (opcion.nombre == "Terminal") {
+                    pantallaActual = Pantalla.Lista
+                }
+            }
+        )
         is Pantalla.Lista -> PantallaListaComandos(
             onItemSeleccionado = { item ->
                 pantallaActual = Pantalla.VisorMarkdown(item)
+            },
+            onVolver = {
+                pantallaActual = Pantalla.MenuPrincipal // Regresar al menú de opciones
             }
         )
         is Pantalla.VisorMarkdown -> PantallaLectorAssets(
@@ -158,9 +196,76 @@ fun AppNavegacionBiblioteca() {
 // ==========================================
 // 5. COMPONENTES DE LA INTERFAZ DE USUARIO (UI)
 // ==========================================
+
+@Composable
+fun PantallaMenuOpciones(onOpcionSeleccionada: (ItemMenu) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Text(
+            text = "Menú Principal",
+            color = Color.White,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(bottom = 24.dp, top = 24.dp)
+        )
+
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            items(Menu.listaOpciones) { opcion ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .clickable { onOpcionSeleccionada(opcion) },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Black), // Gris oscuro
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(id = opcion.iconoOpcion),
+                            contentDescription = opcion.nombre,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .padding(end = 12.dp)
+                        )
+                        Column {
+                            Text(
+                                text = opcion.nombre,
+                                color = Color.White,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = opcion.descripcionBreve,
+                                color = Color.Gray,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaListaComandos(onItemSeleccionado: (ItemBiblioteca) -> Unit) {
+fun PantallaListaComandos(
+    onItemSeleccionado: (ItemBiblioteca) -> Unit,
+    onVolver: () -> Unit) {
     var textoBusqueda by remember { mutableStateOf("") }
 
     // Filtro dinámico según lo que escribas en la barra de búsqueda
