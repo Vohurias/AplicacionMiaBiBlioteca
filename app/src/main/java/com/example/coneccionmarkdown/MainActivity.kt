@@ -13,21 +13,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.jeziellago.compose.markdowntext.MarkdownText
+
 import androidx.activity.enableEdgeToEdge
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import java.io.IOException
 import androidx.compose.ui.platform.LocalContext
-
-
 import androidx.compose.foundation.layout.Arrangement
-
 import androidx.compose.foundation.layout.Spacer
-
 import androidx.compose.foundation.layout.height
-
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -62,7 +57,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
 import androidx.activity.SystemBarStyle
-
+import androidx.activity.compose.BackHandler
+import dev.jeziellago.compose.markdowntext.MarkdownText
+import io.github.teogor.composed.markdown.Markdown
+import io.github.teogor.composed.markdown.MarkdownDefaults
 data class ItemBiblioteca(
     val nombre: String,
     val descripcionBreve: String,
@@ -167,6 +165,23 @@ fun AppNavegacionBiblioteca() {
     var pantallaActual by remember { mutableStateOf<Pantalla>(Pantalla.MenuPrincipal) }
 
     when (val pantalla = pantallaActual) {
+        is Pantalla.MenuPrincipal -> {
+            // Si está en el menú principal y presiona atrás, no hacemos nada (deja que salga de la app)
+        }
+        is Pantalla.Lista -> {
+            BackHandler {
+                pantallaActual = Pantalla.MenuPrincipal // Si está en la lista, regresa al Menú
+            }
+        }
+        is Pantalla.VisorMarkdown -> {
+            BackHandler {
+                pantallaActual = Pantalla.Lista // Si está viendo el Markdown, regresa a la Lista
+            }
+        }
+    }
+
+
+    when (val pantalla = pantallaActual) {
         is Pantalla.MenuPrincipal -> PantallaMenuOpciones(
             onOpcionSeleccionada = { opcion ->
                 // Al presionar la opción "Terminal", navegamos a la lista de comandos
@@ -202,6 +217,7 @@ fun PantallaMenuOpciones(onOpcionSeleccionada: (ItemMenu) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.systemBars)
             .padding(24.dp)
     ) {
         Text(
@@ -277,7 +293,30 @@ fun PantallaListaComandos(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize()
+        .windowInsetsPadding(WindowInsets.systemBars)
+        ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onVolver) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Volver al menú",
+                    tint = Color.White
+                )
+            }
+            Text(
+                text = "Comandos Terminal",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+        }
         // Barra de búsqueda funcional
         OutlinedTextField(
             value = textoBusqueda,
@@ -373,8 +412,13 @@ fun PantallaLectorAssets(item: ItemBiblioteca, onVolver: () -> Unit) {
     }
 
     Scaffold(
+        modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Black, // Fondo negro
+                    titleContentColor = Color.White // Texto blanco
+                ),
                 title = { Text(item.nombre, fontFamily = FontFamily.Monospace) },
                 navigationIcon = {
                     IconButton(onClick = onVolver) {
@@ -389,18 +433,83 @@ fun PantallaLectorAssets(item: ItemBiblioteca, onVolver: () -> Unit) {
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
+                .background(Color.Black)
                 .padding(16.dp)
 
         ) {
-            // Pintamos el Markdown del archivo correspondiente
-            MarkdownText(
-                markdown = contenidoLeido,
-                style = MaterialTheme.typography.bodyMedium
+// Usamos la nueva librería que permite control absoluto de colores
+            io.github.teogor.composed.markdown.Markdown(
+                content = contenidoLeido,
+                colors = MarkdownDefaults.markdownColors(
+                    // 1. Aquí cambias el color de las letras normales de todo tu Markdown
+                    text = Color.White,
+                    codeText = Color(0xFF4FA847), // Verde Kotlin para el texto de código corto
+                    linkText = Color.Cyan
+                ),
+                components = MarkdownDefaults.markdownComponents(
+                    // 2. Personalizamos qué pasa cuando el Markdown detecta un bloque de código (``` o ~~~)
+                    codeBlock = { code ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                                .background(
+                                    color = Color(0xFF1E2429), // Fondo gris oscuro para el bloque de código
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .border(1.dp, Color.Gray, RoundedCornerShape(8.dp))
+                                .padding(12.dp)
+                        ) {
+                            // Aquí se pinta el texto del bloque de código
+                            // Si quieres resaltado de sintaxis real por palabras, necesitas un tokenizador manual:
+                            Text(
+                                text = code,
+                                color = Color(0xFFF8F8F2), // Color de texto tipo temática Dracula/Monokai
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                )
             )
         }
     }
 }
+// Función para colorear palabras reservadas de comandos/código manualmente
+fun colorearCodigo(codigo: String): androidx.compose.ui.text.AnnotatedString {
+    val builder = androidx.compose.ui.text.AnnotatedString.Builder(codigo)
 
+    // Lista de comandos o palabras clave que quieres que brillen en verde (Ej: comandos)
+    val palabrasClaveVerdes = listOf("ls", "grep", "cd", "sudo", "apt", "bash", "clear")
+    // Parámetros o flags que quieres que brillen en naranja/rojo
+    val palabrasClaveNaranjas = listOf("-l", "-a", "-R", "--help", "-i", "-v")
+
+    // 1. Pintar comandos en Verde
+    palabrasClaveVerdes.forEach { palabra ->
+        val regex = "\\b$palabra\\b".toRegex()
+        regex.findAll(codigo).forEach { resultado ->
+            builder.addStyle(
+                style = androidx.compose.ui.text.SpanStyle(color = Color(0xFF4FA847), fontWeight = FontWeight.Bold),
+                start = resultado.range.first,
+                end = resultado.range.last + 1
+            )
+        }
+    }
+
+    // 2. Pintar flags en Naranja
+    palabrasClaveNaranjas.forEach { flag ->
+        val regex = " $flag\\b".toRegex()
+        regex.findAll(codigo).forEach { resultado ->
+            builder.addStyle(
+                style = androidx.compose.ui.text.SpanStyle(color = Color(0xFFFFB86C)),
+                start = resultado.range.first + 1,
+                end = resultado.range.last + 1
+            )
+        }
+    }
+
+    return builder.toAnnotatedString()
+}
 // ==========================================
 // 6. FUNCIÓN DE LECTURA DE ASSETS
 // ==========================================

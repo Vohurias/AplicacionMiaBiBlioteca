@@ -41,6 +41,7 @@ android {
 
 dependencies {
     implementation("com.github.jeziellago:compose-markdown:0.7.2")
+    implementation("io.github.teogor.composed-markdown:markdown:1.0.0-alpha04")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
